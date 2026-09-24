@@ -214,8 +214,8 @@ footer .wrap{display:flex;gap:10px;flex-wrap:wrap;padding-block:18px 26px}
           <input id="cliNome" type="text" autocomplete="organization" required>
           <span class="msg"></span>
         </label>
-        <label class="fld" id="f-cnpj">CNPJ
-          <input id="cliCnpj" type="text" inputmode="numeric" placeholder="00.000.000/0000-00" maxlength="18" required>
+        <label class="fld" id="f-cnpj">CNPJ (opcional)
+          <input id="cliCnpj" type="text" inputmode="numeric" placeholder="00.000.000/0000-00" maxlength="18">
           <span class="msg"></span>
         </label>
         <label class="fld" id="f-pag">Forma de pagamento
@@ -248,13 +248,13 @@ footer .wrap{display:flex;gap:10px;flex-wrap:wrap;padding-block:18px 26px}
 <script>
 /* ================= CONFIGURAÇÃO ================= */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbzVRD76V3TVMMkOhuP5ohf6YV6vov3Y9ZTSZxHva4V7gs5uBNVEQZETsYersFXQ6RB8/exec',                    // URL do App da Web do Apps Script (Implantar > App da Web) — termina em /exec
+  API_URL: '',                    // URL do App da Web do Apps Script (Implantar > App da Web) — termina em /exec
   PLANILHA_CSV: '',               // alternativa: link "Publicar na Web" em CSV da aba Catalogo
   DADOS_LOCAIS: 'produtos.json',  // usado enquanto as duas acima estiverem vazias
   WHATSAPP: '5511974880794',
   CACHE_MIN: 10,                  // minutos que o catálogo fica guardado no navegador
   POR_PAGINA: 48,
-  CSV_TINY: false,                 // inclui no WhatsApp o bloco CSV no modelo de importação de propostas do Tiny
+  CSV_TINY: false,                // inclui no WhatsApp o bloco CSV no modelo de importação de propostas do Tiny
 };
 
 /* ================= LEITURA DOS DADOS ================= */
@@ -537,7 +537,7 @@ function validar() {
   const c = cli(); let ok = true;
   const marca = (id, erro) => { const f = document.getElementById(id); f.classList.toggle('err', !!erro); f.querySelector('.msg').textContent = erro || ''; if (erro) ok = false; };
   marca('f-nome', c.nome ? '' : 'Informe a razão social ou nome.');
-  marca('f-cnpj', cnpjValido(c.cnpj) ? '' : 'CNPJ inválido.');
+  marca('f-cnpj', !soDig(c.cnpj) || cnpjValido(c.cnpj) ? '' : 'CNPJ inválido — confira ou deixe em branco.');
   marca('f-pag', c.pag ? '' : 'Informe a forma de pagamento.');
   marca('f-ent', c.ent ? '' : 'Escolha entrega ou retirada.');
   return ok;
@@ -563,7 +563,7 @@ function csvTiny(c, its) {
     const pr = preco(p, q);
     const r = Object.fromEntries(COLS_TINY.map(k => [k, '']));
     r['Nome do contato'] = c.nome;
-    if (i === 0) Object.assign(r, { 'Data': hoje(), 'Tipo de Pessoa': 'J', 'CPF/CNPJ': c.cnpj, 'Observações': obs, 'Situação': 'Em aberto' });
+    if (i === 0) Object.assign(r, { 'Data': hoje(), 'Tipo de Pessoa': c.cnpj ? 'J' : '', 'CPF/CNPJ': c.cnpj, 'Observações': obs, 'Situação': 'Em aberto' });
     Object.assign(r, {
       'ID produto': p.cod, 'Descrição': p.nome, 'Quantidade': q,
       'Valor unitário': pr.unit ? dec(pr.unit) : '',
@@ -578,13 +578,11 @@ function mensagem() {
   const c = cli(), its = itensCarrinho(), t = totais();
   const linhas = its.map(({ p, q }, i) => {
     const pr = preco(p, q);
-    return (i + 1) + '. ' + p.nome + ' (' + p.cod + ')\n   ' + q + ' un' +
-      (pr.unit ? ' × ' + brl(pr.unit) + ' (' + pr.faixa + ') = ' + brl(pr.unit * q)
-               : ' — preço sob consulta' + (pr.min ? ' (mín. ' + pr.min + ' un)' : ''));
+    return (i + 1) + '. ' + [p.cod, p.nome, q, pr.faixa, pr.unit ? dec(pr.unit) : '-', pr.unit ? dec(pr.unit * q) : '-'].join(' | ');
   });
   let m = '*Orçamento – Catálogo Luma Festas*\n\n' +
-    'Cliente: ' + c.nome + '\nCNPJ: ' + c.cnpj + '\nPagamento: ' + c.pag + '\nEntrega/Retira: ' + c.ent + '\n\n' +
-    linhas.join('\n') + '\n\nSubtotal: ' + brl(t.sub) + (t.sc ? '\nItens sob consulta: ' + t.sc : '');
+    'Cliente: ' + c.nome + '\nCNPJ: ' + (c.cnpj || 'não informado') + '\nPagamento: ' + c.pag + '\nEntrega/Retira: ' + c.ent + '\n\n' +
+    'Nº. Código | Descrição | Qtd | Tabela | Unit. R$ | Total R$\n' + linhas.join('\n') + '\n\nSubtotal: ' + brl(t.sub) + (t.sc ? '\nItens sob consulta: ' + t.sc : '');
   if (CONFIG.CSV_TINY) m += '\n\n--- CSV TINY (proposta) ---\n' + csvTiny(c, its) + '\n--- FIM CSV ---';
   return m;
 }
